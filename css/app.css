@@ -1972,7 +1972,7 @@ body.bulk-active {
     animation: modalBoxSlideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
   }
   .modal-header,
-  .modal-body { padding-left: 16px; padding-right: 16px; }
+  .modal-body { padding: 16px; }
   .modal-footer {
     flex-wrap: wrap;
     gap: 8px;
