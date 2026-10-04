@@ -78,6 +78,11 @@ export class CryptoEngine {
     let keyBytes;
     if (useArgon2) {
       const argon2 = await CryptoEngine._loadArgon2();
+      if (!argon2) {
+        const err = new Error('Argon2id non disponibile su questo browser. Riprova o aggiorna la pagina.');
+        err.code = 'kdf-unavailable';
+        throw err;
+      }
       const result = await argon2.hash({
         pass: password,
         salt: salt,

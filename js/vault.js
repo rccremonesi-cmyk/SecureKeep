@@ -131,7 +131,7 @@ export class Vault {
       const kekPwd = await CryptoEngine.deriveKeyFromPassword(password, salt, config.kdfAlgorithm || config.kdfAlgo);
       this._mk = await CryptoEngine.unwrapKey(config.wrappedMkPwd, kekPwd);
     } catch (err) {
-      if (err?.code === 'unlock-locked' || err?.code === 'unlock-failed') throw err;
+      if (err?.code === 'unlock-locked' || err?.code === 'unlock-failed' || err?.code === 'kdf-unavailable') throw err;
       await this._registerUnlockFailure('Password non corretta');
     }
     await this.storage.clearUnlockGuard();
@@ -230,7 +230,8 @@ export class Vault {
     try {
       const kekPwd = await CryptoEngine.deriveKeyFromPassword(password, pwdSalt, config.kdfAlgorithm || config.kdfAlgo);
       extractableMk = await CryptoEngine.unwrapKey(config.wrappedMkPwd, kekPwd, true);
-    } catch {
+    } catch (err) {
+      if (err?.code === 'kdf-unavailable') throw err;
       throw new Error('Password non corretta');
     }
     const prfSalt = crypto.getRandomValues(new Uint8Array(32));
