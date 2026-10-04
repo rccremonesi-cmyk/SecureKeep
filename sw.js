@@ -7,7 +7,7 @@
  * Versioning: bump CACHE_VERSION on each deploy to invalidate old caches.
  */
 
-const CACHE_VERSION  = 'sk-v1.3.109';
+const CACHE_VERSION  = 'sk-v1.3.110';
 const CACHE_NAME     = `securekeep-${CACHE_VERSION}`;
 
 // App shell files to pre-cache
