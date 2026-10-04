@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+ <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+ <title>SecureKeep</title>
+ <link rel="icon" type="image/svg+xml" href="icons/fingerprint.svg">
+
+ <!-- ── PWA & Theme ───────────────────────────────────────────────────── -->
+ <meta name="theme-color" content="#4F46E5">
+ <meta name="mobile-web-app-capable" content="yes">
+ <meta name="apple-mobile-web-app-capable" content="yes">
+ <meta name="apple-mobile-web-app-status-bar-style" content="default">
+ <meta name="apple-mobile-web-app-title" content="SecureKeep">
+ <link rel="apple-touch-icon" href="icons/fingerprint.svg">
+ <link rel="manifest" href="manifest.json">
+
+ <!-- ── Font: Inter ──────────────────────────────────────────────────── -->
+ <link rel="stylesheet" href="css/fonts.css">
+ <!-- ── Icons: Lucide ────────────────────────────────────────────────── -->
+ <script src="js/lib/lucide.js"></script>
+
+ <!-- ── Security ──────────────────────────────────────────────────────── -->
+ <meta http-equiv="Content-Security-Policy"
+ content="default-src 'self';
+ script-src 'self' https://accounts.google.com 'wasm-unsafe-eval';
+ style-src 'self' 'unsafe-inline';
+ connect-src 'self' https://www.googleapis.com https://accounts.google.com https://api.pwnedpasswords.com https://photon.komoot.io;
+ img-src 'self' data: blob: https://icon.horse https://tile.openstreetmap.org;
+ font-src 'self';
+ frame-src https://accounts.google.com;
+ worker-src 'self';
+ object-src 'none';
+ base-uri 'self';
+ form-action 'self';">
+
+ <link rel="stylesheet" href="js/lib/leaflet/leaflet.css">
+ <link rel="stylesheet" href="css/app.css">
+  <!-- Lottie Player for JSON animations -->
+  <script src="js/lib/lottie/lottie-light.min.js"></script>
+  <script src="js/lib/lottie/lottie-element.js"></script>
+</head>
+<body>
+
+<div id="install-banner" class="hidden" role="region" aria-label="Installa l’app">
+ <p id="install-banner-text">Installa SecureKeep sul dispositivo per aprirla come app.</p>
+ <div class="install-banner-actions">
+  <button type="button" class="btn btn-outline" id="btn-install-banner">Installa</button>
+  <button type="button" class="btn btn-ghost" id="btn-install-dismiss">Chiudi</button>
+ </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+ ONBOARDING
+ ════════════════════════════════════════════════════════════════════════ -->
+<div id="onboarding" class="hidden">
+ <div class="ob-card">
+
+ <div class="ob-logo">
+ <img src="icons/fingerprint.svg" alt="" class="app-mark app-mark-lg" width="64" height="64">
+ <h1>SecureKeep</h1>
+ <p>La tua cassaforte crittografata, sincronizzata via Google Drive</p>
+ </div>
+
+ <div class="ob-steps-indicator">
+ <div class="ob-step-dot active" id="dot-1"></div>
+ <div class="ob-step-dot" id="dot-2"></div>
+ <div class="ob-step-dot" id="dot-3"></div>
+ </div>
+
+ <!-- Step 1 — Master Password -->
+ <div class="ob-step" id="ob-step-1">
+ <h2 style="margin-bottom:.5rem">Crea la tua cassaforte</h2>
+ <p class="text-muted text-sm" style="margin-bottom:1.5rem">
+ Scegli una Master Password sicura. Questa è l'unica password che dovrai ricordare.
+ <strong>Non può essere reimpostata</strong> — potrai recuperare l'accesso solo con la tua chiave di ripristino.
+ </p>
+
+ <div class="form-group">
+ <label for="ob-password">Master Password</label>
+ <input type="password" id="ob-password" placeholder="Scegli una password sicura"
+ autocomplete="new-password" spellcheck="false">
+ <div class="strength-wrap">
+ <div class="strength-bar-bg"><div class="strength-bar" id="ob-strength-bar"></div></div>
+ <div class="strength-label" id="ob-strength"></div>
+ </div>
+ </div>
+
+ <div class="form-group">
+ <label for="ob-password-confirm">Conferma Password</label>
+ <input type="password" id="ob-password-confirm" placeholder="Ripeti la password"
+ autocomplete="new-password" spellcheck="false">
+ </div>
+
+ <button class="btn btn-primary w-full" id="ob-step1-next">Continua</button>
+ <button class="btn btn-ghost w-full" id="ob-restore-drive" style="margin-top:.75rem">Ho già una cassaforte su Google Drive</button>
+ </div>
+
+ <!-- Step 2 — Chiave di Ripristino -->
+ <div class="ob-step hidden" id="ob-step-2">
+ <h2 style="margin-bottom:.5rem">Salva le chiavi di emergenza</h2>
+ <p class="text-muted text-sm" style="margin-bottom:.75rem">
+ La chiave di ripristino apre la cassaforte se dimentichi la master password.
+ La chiave segreta serve su un dispositivo nuovo, insieme alla password. Su questo dispositivo viene ricordata.
+ <strong>Vengono mostrate una sola volta.</strong>
+ </p>
+
+ <div class="recovery-warning">
+ ️ <span>Scrivile, stampale o salvile in un posto sicuro <em>offline</em>. Se perdi password, chiave di ripristino e chiave segreta, i dati non si recuperano.</span>
+ </div>
+
+ <p class="settings-label" style="margin-top:1rem">Chiave di ripristino</p>
+ <div class="recovery-key-box" id="recovery-key-display" aria-label="Chiave di ripristino"></div>
+
+ <p class="settings-label">Chiave segreta</p>
+ <div class="recovery-key-box" id="secret-key-display" aria-label="Chiave segreta"></div>
+
+ <div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem">
+ <button class="btn btn-outline" id="btn-copy-recovery" style="flex:1"><i data-lucide="copy" style="width:16px;height:16px;margin-right:4px;"></i> Copia ripristino</button>
+ <button class="btn btn-outline" id="btn-copy-secret" style="flex:1"><i data-lucide="copy" style="width:16px;height:16px;margin-right:4px;"></i> Copia segreta</button>
+ <button class="btn btn-outline" id="btn-print-recovery" style="flex:1"><i data-lucide="printer" style="width:16px;height:16px;margin-right:4px;"></i> Stampa</button>
+ </div>
+
+ <div class="ob-confirm-row">
+ <input type="checkbox" id="ob-recovery-confirmed">
+ <label for="ob-recovery-confirmed">
+ Ho messo al sicuro la chiave di ripristino e la chiave segreta. So che non verranno mostrate di nuovo.
+ </label>
+ </div>
+
+ <button class="btn btn-primary w-full" id="ob-step2-next" disabled>Continua</button>
+ </div>
+
+ <!-- Step 3 — Google Drive -->
+ <div class="ob-step hidden" id="ob-step-3">
+ <h2 style="margin-bottom:.5rem">Connetti a Google Drive</h2>
+ <p class="text-muted text-sm" style="margin-bottom:.75rem">
+ SecureKeep uses your Google Drive as encrypted storage. Only files created by this app are accessible.
+ </p>
+
+ <ul class="drive-feature-list">
+ <li> Tutti i dati vengono crittografati <strong>prima</strong> di lasciare il tuo dispositivo</li>
+ <li>️ Sincronizzazione tra tutti i tuoi dispositivi</li>
+ <li> Accede solo alla cartella <code>SecureKeepVault</code> che crea in automatico</li>
+ <li> Google non ha mai accesso in chiaro alle tue password o alle tue note</li>
+ </ul>
+
+ <button class="btn btn-primary w-full" id="ob-connect-drive" style="margin-bottom:.75rem">
+ <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0"><path d="M4.3 19.1 1.2 14l5.5-9.5h6.6L7.5 14zm7.5 0H1.2l3-5h10.6zm7.2 0H11.8l3-5h3.6l1.7-3-3-5.2H11.8l3.2-5.5h.1L20.4 9l1.8 3z"/></svg>
+ Connetti a Google Drive
+ </button>
+ <button class="btn btn-ghost w-full" id="ob-skip-drive">Salta per ora (solo offline)</button>
+ </div>
+
+ </div>
+</div><!-- /#onboarding -->
+
+
+<!-- ════════════════════════════════════════════════════════════════════════
+ LOCK SCREEN
+ ════════════════════════════════════════════════════════════════════════ -->
+<div id="lock-screen" class="hidden">
+ <div class="lock-card">
+  <div class="lock-icon"><img src="icons/fingerprint.svg" alt="" class="app-mark app-mark-lg" width="72" height="72"></div>
+  <h2>Cassaforte bloccata</h2>
+  <p class="lock-lead">Entra con la master password oppure con la chiave di ripristino.</p>
+  <p id="lock-last-login" class="lock-meta"></p>
+  <p id="lock-attempt-status" class="lock-attempt-status hidden" role="status"></p>
+
+  <button type="button" class="btn btn-outline w-full lock-biometric hidden" id="btn-unlock-biometric">
+   <i data-lucide="fingerprint"></i>
+   <span>Sblocca con impronta</span>
+  </button>
+  <div class="lock-or" aria-hidden="true"><span>oppure</span></div>
+
+  <div class="lock-switch" role="tablist" aria-label="Metodo di sblocco">
+   <button type="button" class="active" id="lock-tab-password" role="tab" aria-selected="true">Master password</button>
+   <button type="button" id="btn-use-recovery" role="tab" aria-selected="false">Chiave di ripristino</button>
+  </div>
+
+  <form id="form-unlock" class="lock-panel">
+   <div class="lock-field">
+    <label for="lock-password">Master password</label>
+    <div class="lock-field-box">
+     <input type="password" id="lock-password" placeholder="La password della cassaforte"
+      autocomplete="current-password" spellcheck="false" autocorrect="off">
+     <button type="button" class="btn-icon" id="btn-lock-pwd-vis" aria-label="Mostra password"><i data-lucide="eye"></i></button>
+    </div>
+   </div>
+   <div class="lock-field hidden" id="lock-secret-field">
+    <label for="lock-secret-key">Chiave segreta</label>
+    <p class="lock-hint">Serve la prima volta su questo dispositivo, insieme alla password.</p>
+    <input type="text" id="lock-secret-key" class="lock-key-input" placeholder="XXXX-XXXX-XXXX-…"
+     spellcheck="false" autocorrect="off" autocapitalize="characters" autocomplete="off">
+   </div>
+   <button type="submit" class="btn btn-primary w-full" id="btn-unlock">Sblocca</button>
+  </form>
+
+  <div id="lock-recovery-section" class="hidden">
+   <form id="form-recovery" class="lock-panel">
+    <div class="lock-field">
+     <label for="lock-recovery-key">Chiave di ripristino</label>
+     <p class="lock-hint">Quella mostrata una sola volta quando hai creato la cassaforte.</p>
+     <input type="text" id="lock-recovery-key" class="lock-key-input" placeholder="XXXX-XXXX-XXXX-…"
+      spellcheck="false" autocorrect="off" autocapitalize="characters" autocomplete="off">
+    </div>
+    <button type="submit" class="btn btn-primary w-full" id="btn-unlock-recovery">Sblocca</button>
+   </form>
+  </div>
+ </div>
+</div><!-- /#lock-screen -->
+
+
+<!-- ════════════════════════════════════════════════════════════════════════
+ APP SHELL
+ ════════════════════════════════════════════════════════════════════════ -->
+<div id="app-shell" class="hidden">
+
+ <!-- Banners -->
+ <div id="setup-banner" class="hidden">
+ ️ <strong>Google Client ID non configurato.</strong> La sincronizzazione con Drive è disabilitata.
+ Vedi <a href="README.md" target="_blank" style="color:inherit;text-decoration:underline">README.md</a> per le istruzioni di setup.
+ </div>
+
+ <div id="update-banner" class="hidden">
+ <i data-lucide="refresh-cw" style="display:inline-block; margin-right:4px;"></i> È disponibile una nuova versione!
+ <button class="btn btn-outline" id="btn-update-app" style="color:#fff;border-color:#fff;padding:.35rem .8rem;font-size:.8rem">Aggiorna ora</button>
+ </div>
+
+ <div id="offline-indicator" class="hidden"> Sei offline — le modifiche verranno sincronizzate appena ti ricolleghi</div>
+
+ <!-- ── Topbar ──────────────────────────────────────────────────────── -->
+ <header id="topbar">
+ <button class="btn-icon" id="btn-sidebar-toggle" title="Menu" aria-label="Alterna barra laterale">
+ <i data-lucide="menu"></i>
+ </button>
+
+ <div class="logo">
+ <img src="icons/fingerprint.svg" alt="" class="app-mark" width="28" height="28">
+ <span>SecureKeep</span>
+ </div>
+
+ <div id="search-wrapper">
+ <span class="search-icon"><i data-lucide="search"></i></span>
+ <input type="search" id="search-input" placeholder="Cerca per titolo o etichetta..."
+ autocomplete="off" spellcheck="false">
+ <div id="search-type-filters" role="group" aria-label="Filtra per tipologia">
+  <button type="button" class="search-type-btn" data-type="password" title="Password" aria-label="Password" aria-pressed="false"><i data-lucide="key"></i></button>
+  <button type="button" class="search-type-btn" data-type="note" title="Nota" aria-label="Nota" aria-pressed="false"><i data-lucide="file-text"></i></button>
+  <button type="button" class="search-type-btn" data-type="checklist" title="Checklist" aria-label="Checklist" aria-pressed="false"><i data-lucide="check-square"></i></button>
+ </div>
+ <button id="search-clear" class="btn-icon hidden" title="Svuota ricerca"><i data-lucide="x"></i></button>
+ </div>
+
+ <div id="topbar-actions">
+
+
+ <div style="display:flex; align-items:center; gap:var(--sp-2);">
+ <span id="sync-time" class="hide-mobile" style="font-size: 0.75rem; color: var(--text-muted); font-weight: 500;">Non connesso</span>
+ <div id="sync-status" data-status="offline" title="Offline" aria-label="Sync status">
+ <i data-lucide="cloud-off"></i>
+ </div>
+ </div>
+
+ <button class="btn-icon" id="btn-theme" title="Toggle dark/light mode" aria-label="Toggle theme">
+ <i data-lucide="sun-moon"></i>
+ </button>
+
+ <button class="btn-icon hidden" id="btn-install-pwa" title="Install app" aria-label="Install app">
+ <i data-lucide="download"></i>
+ </button>
+
+ <button class="btn-icon" id="btn-settings" title="Impostazioni" aria-label="Impostazioni">
+ <i data-lucide="settings"></i>
+ </button>
+ </div>
+ </header>
+
+ <!-- ── Layout ─────────────────────────────────────────────────────── -->
+ <div id="app-layout">
+
+ <!-- Sidebar overlay (mobile) -->
+ <div id="sidebar-overlay"></div>
+
+ <!-- Sidebar -->
+ <nav id="sidebar" aria-label="Navigation">
+ <div class="sidebar-brand">
+  <img src="icons/fingerprint.svg" alt="" class="app-mark" width="28" height="28">
+  <span>SecureKeep</span>
+ </div>
+ <div id="sidebar-actions" class="sidebar-actions"></div>
+ <ul class="sidebar-nav">
+ <li>
+ <button data-nav="all">
+ <span><i data-lucide="layout-grid"></i> Tutte le note</span>
+ <span class="sidebar-count" id="count-all"></span>
+ </button>
+ </li>
+ <li>
+ <button data-nav="pinned">
+ <span><i data-lucide="pin"></i> Fissate</span>
+ <span class="sidebar-count" id="count-pinned"></span>
+ </button>
+ </li>
+ <li>
+ <button data-nav="archive">
+ <span><i data-lucide="archive"></i> Archivio</span>
+ <span class="sidebar-count" id="count-archive"></span>
+ </button>
+ </li>
+ <li>
+ <button data-nav="trash">
+ <span><i data-lucide="trash-2"></i> Cestino</span>
+ <span class="sidebar-count" id="count-trash"></span>
+ </button>
+ </li>
+ </ul>
+
+      <div class="sidebar-section-title sidebar-tags-heading">
+        <span class="sidebar-tags-label"><i data-lucide="hash" style="width:14px;height:14px;"></i> Etichette</span>
+        <button type="button" class="btn-icon sidebar-tags-edit" id="btn-manage-tags" title="Modifica etichette" aria-label="Modifica etichette">
+          <i data-lucide="pencil" style="width:14px;height:14px;"></i>
+        </button>
+      </div>
+ <ul id="sidebar-tags" class="sidebar-nav"></ul>
+
+      <div class="sidebar-section-title sidebar-tags-heading">
+        <span class="sidebar-tags-label"><i data-lucide="map-pin" style="width:14px;height:14px;"></i> Luoghi</span>
+        <button type="button" class="btn-icon sidebar-tags-edit" id="btn-manage-places" title="Modifica luoghi" aria-label="Modifica luoghi">
+          <i data-lucide="pencil" style="width:14px;height:14px;"></i>
+        </button>
+      </div>
+ <ul class="sidebar-nav">
+  <li>
+   <button data-nav="places">
+    <span><i data-lucide="map-pin"></i> Luoghi</span>
+   </button>
+  </li>
+ </ul>
+
+ 
+
+ <div class="sidebar-lock-section" style="margin-top: auto; padding: var(--sp-4); border-top: 1px solid var(--border);">
+ <div id="idle-progress-container" style="height: 3px; background: var(--border); border-radius: 2px; margin-bottom: 12px; overflow: hidden; width: 100%;"><div id="idle-progress-bar" style="height: 100%; width: 100%; background: var(--accent); transition: width 1s linear;"></div></div>
+ <div id="idle-timer-container" style="font-size: 0.8rem; color: var(--text-muted); text-align: center; margin-bottom: 12px; font-variant-numeric: tabular-nums; display: flex; align-items: center; justify-content: center; gap: 6px;"><i data-lucide="clock" style="width:14px;height:14px;"></i> <span id="idle-timer-text"></span></div>
+   <button class="btn w-full" id="btn-lock" style="display:flex; justify-content:center; align-items:center; gap:var(--sp-2); background: var(--bg); border: 1px solid var(--border); color: var(--text);">
+ <i data-lucide="lock" style="width:18px;height:18px;"></i> Blocca Cassaforte
+ </button>
+ <p style="margin-top:var(--sp-3); font-size:0.75rem; color:var(--text-muted); text-align:center; line-height:1.4;">
+ Chiude immediatamente la sessione e crittografa i dati in memoria. Servirà la tua Master Password per riaccedere.
+ </p>
+ </div>
+ </nav>
+
+ <!-- Main content -->
+ <main id="main-content">
+  <!-- Quick Create Bar -->
+  <div class="quick-create-container">
+    <div class="quick-create-bar" id="quick-create-bar">
+      <input type="text" placeholder="Scrivi una nota..." id="quick-create-input" readonly>
+      <div class="quick-create-actions">
+        <button class="btn-icon" id="quick-create-checklist" title="Nuovo elenco"><i data-lucide="check-square"></i></button>
+        <button class="btn-icon" id="quick-create-password" title="Nuova password"><i data-lucide="key"></i></button>
+      </div>
+    </div>
+    <button class="btn-icon btn-compact-notes" id="btn-compact-notes" type="button" title="Vista compatta" aria-pressed="false" aria-label="Vista compatta">
+      <i data-lucide="gallery-vertical"></i>
+    </button>
+  </div>
+
+  <div id="notes-grid" role="list" aria-label="Notes"></div>
+ </main>
+
+ </div>
+
+ <!-- ── FAB ────────────────────────────────────────────────────────── -->
+ <div id="fab-container">
+   <button class="btn btn-danger hidden" id="btn-empty-trash" title="Svuota cestino" style="border-radius: var(--radius-card); padding: 0 20px; height: var(--fab-size); box-shadow: var(--shadow-md); font-weight: 600; gap: 8px;">
+     <i data-lucide="trash-2" style="width:20px;height:20px;"></i><span>Svuota cestino</span>
+   </button>
+   <button id="fab-drive" type="button" data-connected="off" aria-pressed="false" title="Collega Google Drive" aria-label="Collega Google Drive">
+    <i data-lucide="cloud-off"></i>
+    <span class="fab-drive-dot" aria-hidden="true"></span>
+   </button>
+   <button id="fab-btn" aria-label="Create new note" title="New note">
+   <i data-lucide="plus"></i>
+   </button>
+ </div>
+
+ <!-- ── Bulk action toolbar ────────────────────────────────────────── -->
+ <div id="bulk-toolbar" class="hidden" role="toolbar" aria-label="Bulk actions">
+ <button class="btn-icon" id="bulk-select-all" title="Seleziona / Deseleziona tutti" aria-label="Seleziona o deseleziona tutti"><i data-lucide="check-square" id="bulk-select-all-icon"></i></button>
+ <span id="bulk-count">0 selezionati</span>
+ <button class="btn btn-outline" id="bulk-archive" aria-label="Archivia"><i data-lucide="archive" style="width:16px;height:16px"></i><span>Archivia</span></button>
+ <button class="btn btn-outline" id="bulk-color" aria-label="Colore"><i data-lucide="palette" style="width:16px;height:16px"></i><span>Colore</span></button>
+   <button class="btn btn-outline" id="bulk-restore" aria-label="Ripristina"><i data-lucide="rotate-ccw" style="width:16px;height:16px"></i><span>Ripristina</span></button>
+   <button class="btn btn-danger" id="bulk-trash" aria-label="Cestino"><i data-lucide="trash-2" style="width:16px;height:16px"></i><span>Cestino</span></button>
+ <button class="btn btn-ghost" id="bulk-cancel" aria-label="Annulla"><i data-lucide="x" style="width:16px;height:16px"></i><span>Annulla</span></button>
+ </div>
+
+</div><!-- /#app-shell -->
+
+
+<!-- ════════════════════════════════════════════════════════════════════════
+ MODALS
+ ════════════════════════════════════════════════════════════════════════ -->
+
+<!-- ── Nota Password Editor ────────────────────────────────────────────── -->
+<div id="modal-password" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="pwd-modal-title">
+ <div class="modal-backdrop"></div>
+ <div class="modal-box">
+ <div class="modal-header">
+ <h2 id="pwd-modal-title">Nota Password</h2>
+ <button class="btn-icon" id="btn-close-pwd" aria-label="Chiudi"><i data-lucide="x"></i></button>
+ </div>
+ <div class="modal-body">
+
+ <div class="form-group">
+ <label for="pwd-title">Titolo</label>
+ <div style="display: flex; align-items: center; gap: var(--sp-2);">
+ <div id="pwd-title-icon-display" class="hidden" style="align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: var(--radius-btn); background: var(--bg); border: 1px solid var(--border); flex-shrink: 0;"></div>
+ <input type="text" id="pwd-title" placeholder="es. Gmail, Netflix…"
+ autocomplete="off" spellcheck="false" style="flex: 1;">
+ </div>
+ </div>
+
+ <div class="form-group">
+ <label>Icona</label>
+ <div class="icon-picker-wrap">
+ <div id="icon-picker"></div>
+ </div>
+     <input type="hidden" id="pwd-custom-icon" value="">
+     <div id="custom-icon-preview-wrap" style="display:none; align-items:center; gap:8px; margin-bottom:16px; padding:12px; background:var(--bg-hover); border:1px solid var(--border); border-radius:var(--radius-card);">
+       <img id="custom-icon-preview" src="" style="width:32px;height:32px;border-radius:4px;background:#fff;padding:2px;">
+       <div style="flex:1;font-size:var(--text-sm);color:var(--text);">Logo sito personalizzato</div>
+       <button type="button" class="btn-icon" id="btn-remove-custom-icon" title="Rimuovi logo"><i data-lucide="trash-2"></i></button>
+     </div>
+ </div>
+
+ <div class="form-group">
+ <label for="pwd-username">Username / Email</label>
+ <input type="text" id="pwd-username" placeholder="tu@esempio.com"
+ autocomplete="off" spellcheck="false">
+ </div>
+
+ <div class="form-group">
+ <label for="pwd-password">Password</label>
+ <div class="input-with-action pwd-secret-field">
+ <input type="password" id="pwd-password" placeholder="Password"
+ autocomplete="off" spellcheck="false">
+ <button type="button" class="btn-icon" id="btn-toggle-pwd-vis" title="Mostra/nascondi"><i data-lucide="eye"></i></button>
+ <button type="button" class="btn-icon" id="btn-copy-pwd" title="Copia password"><i data-lucide="copy"></i></button>
+ <button type="button" class="btn-icon" id="btn-generate-pwd" title="Genera password"><i data-lucide="sparkles"></i></button>
+ </div>
+ <div class="strength-wrap">
+ <div class="strength-bar-bg"><div class="strength-bar" id="pwd-strength-bar"></div></div>
+ <div class="strength-label" id="pwd-strength-label"></div>
+ </div>
+ <p id="pwd-reuse-warning" class="pwd-warning hidden"></p>
+ <p id="pwd-breach-warning" class="pwd-warning hidden"></p>
+ </div>
+
+ <div class="form-group">
+ <label for="pwd-renew">Ricordami di rinnovarla</label>
+ <select id="pwd-renew">
+  <option value="0">Mai</option>
+  <option value="1">Ogni mese</option>
+  <option value="3">Ogni 3 mesi</option>
+  <option value="6">Ogni 6 mesi</option>
+  <option value="12">Ogni anno</option>
+ </select>
+ <p id="pwd-renew-due" class="pwd-warning hidden">È ora di rinnovare questa password.</p>
+ </div>
+
+ <div class="form-group">
+ <label for="pwd-url">URL (opzionale)</label>
+ <div style="display:flex; gap:8px;">
+     <input type="url" id="pwd-url" placeholder="https://esempio.com"
+ autocomplete="off" spellcheck="false" style="flex:1;">
+     <button type="button" class="btn btn-primary" id="btn-fetch-favicon" title="Scarica logo sito" style="padding:0 12px; border-radius:var(--radius-btn);"><i data-lucide="download-cloud" style="width:20px;height:20px;"></i></button>
+   </div>
+ </div>
+
+ <div class="form-group place-field">
+ <label>Luoghi</label>
+ <div id="pwd-place-picker" class="place-picker"></div>
+ <input type="hidden" id="pwd-draft-places" value="">
+ </div>
+
+ <div class="form-group">
+ <label for="pwd-notes">Note aggiuntive</label>
+ <textarea id="pwd-notes" placeholder="Eventuali informazioni aggiuntive..."
+ autocomplete="off" spellcheck="false" rows="3"></textarea>
+ 
+       <div id="pwd-detected-links" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; empty-cells:hide;"></div></div>
+
+ <button class="btn btn-ghost text-sm" id="btn-pwd-history">
+   <i data-lucide="history" style="width:16px;height:16px"></i> <span id="pwd-history-label">Storico</span>
+   </button>
+  
+   </div>
+  <div class="modal-footer editor-footer">
+    <div class="editor-footer-tools">
+       <button type="button" class="btn-icon draft-undo-btn" title="Annulla modifica" disabled><i data-lucide="undo-2"></i></button>
+       <button type="button" class="btn-icon draft-redo-btn" title="Ripeti modifica" disabled><i data-lucide="redo-2"></i></button>
+       <button type="button" class="btn-icon draft-color-btn" title="Colore" style="color:var(--text-muted)"><i data-lucide="palette"></i></button>
+       <button type="button" class="btn-icon draft-tags-btn" title="Etichette"><i data-lucide="tag"></i></button>
+       <button type="button" class="btn-icon draft-pin-btn" id="pwd-draft-pin-btn" title="Fissa in alto"><i data-lucide="pin"></i></button>
+       <button type="button" class="btn-icon draft-trash-btn" title="Cestino" style="color:var(--text-muted)"><i data-lucide="trash-2"></i></button>
+       <input type="hidden" id="pwd-draft-color" value="default">
+       <input type="hidden" id="pwd-draft-pinned" value="false">
+       <input type="hidden" id="pwd-draft-tags" value="">
+    </div>
+    <div class="editor-footer-actions">
+       <button class="btn btn-ghost" id="btn-close-pwd-footer">Annulla</button>
+       <button class="btn btn-primary" id="btn-save-pwd">Chiudi</button>
+    </div>
+  </div>
+   </div>
+  </div>
+
+  <!-- ── Classic Note Editor ──────────────────────────────────────────────── -->
+  <div id="modal-note" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="note-modal-title">
+   <div class="modal-backdrop"></div>
+   <div class="modal-box">
+   <div class="modal-header">
+   <h2 id="note-modal-title">Note</h2>
+   <button class="btn-icon" id="btn-close-note" aria-label="Chiudi"><i data-lucide="x"></i></button>
+   </div>
+   <div class="modal-body">
+  
+   <div class="form-group">
+   <label for="note-title">Titolo</label>
+   <input type="text" id="note-title" placeholder="Titolo (opzionale)"
+   autocomplete="off" spellcheck="false" style="flex: 1;">
+   </div>
+  
+   <div class="form-group">
+   <textarea id="note-content" placeholder="Inizia a scrivere la tua nota..."
+   autocomplete="off" rows="8" style="border-color:transparent;background:transparent;padding:0;box-shadow:none;resize:vertical;min-height:160px;"></textarea>
+   
+       <div id="note-detected-links" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; empty-cells:hide;"></div></div>
+  
+   <div id="note-images"></div>
+  
+   <div id="note-drop-zone">
+   <i data-lucide="image-plus" style="width:20px;height:20px;margin-bottom:4px;opacity:.5"></i><br>
+   Trascina le immagini qui o incollale (Ctrl+V)
+   </div>
+
+   <div class="form-group place-field">
+    <label>Luoghi</label>
+    <div id="note-place-picker" class="place-picker"></div>
+    <input type="hidden" id="note-draft-places" value="">
+   </div>
+  
+   </div>
+  <div class="modal-footer editor-footer">
+    <div class="editor-footer-tools">
+       <button type="button" class="btn-icon draft-undo-btn" title="Annulla modifica" disabled><i data-lucide="undo-2"></i></button>
+       <button type="button" class="btn-icon draft-redo-btn" title="Ripeti modifica" disabled><i data-lucide="redo-2"></i></button>
+       <button type="button" class="btn-icon draft-color-btn" title="Colore" style="color:var(--text-muted)"><i data-lucide="palette"></i></button>
+       <button type="button" class="btn-icon draft-tags-btn" title="Etichette"><i data-lucide="tag"></i></button>
+       <button type="button" class="btn-icon draft-pin-btn" id="note-draft-pin-btn" title="Fissa in alto"><i data-lucide="pin"></i></button>
+       <button type="button" class="btn-icon draft-trash-btn" title="Cestino" style="color:var(--text-muted)"><i data-lucide="trash-2"></i></button>
+       <input type="hidden" id="note-draft-color" value="default">
+       <input type="hidden" id="note-draft-pinned" value="false">
+       <input type="hidden" id="note-draft-tags" value="">
+    </div>
+    <div class="editor-footer-actions">
+       <button class="btn btn-ghost" id="btn-close-note-footer">Annulla</button>
+       <button class="btn btn-primary" id="btn-save-note">Chiudi</button>
+    </div>
+  </div>
+   </div>
+  </div>
+
+  <!-- ── Elenco di controllo Editor ──────────────────────────────────────────────────── -->
+  <div id="modal-checklist" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="cl-modal-title">
+   <div class="modal-backdrop"></div>
+   <div class="modal-box">
+   <div class="modal-header">
+   <h2 id="cl-modal-title">Elenco</h2>
+   <button class="btn-icon" id="btn-close-cl" aria-label="Chiudi"><i data-lucide="x"></i></button>
+   </div>
+   <div class="modal-body">
+  
+   <div class="form-group">
+   <label for="cl-title">Titolo</label>
+   <input type="text" id="cl-title" placeholder="Titolo (opzionale)"
+   autocomplete="off" spellcheck="false">
+   </div>
+  
+   <div id="cl-items-list" style="margin:var(--sp-4) 0;"></div>
+  
+   <button class="btn btn-ghost text-sm" id="btn-add-cl-item" style="gap:6px">
+   <i data-lucide="plus" style="width:16px;height:16px"></i> Aggiungi voce
+   </button>
+
+   <div class="form-group place-field">
+    <label>Luoghi</label>
+    <div id="cl-place-picker" class="place-picker"></div>
+    <input type="hidden" id="cl-draft-places" value="">
+   </div>
+  
+   </div>
+  <div class="modal-footer editor-footer">
+    <div class="editor-footer-tools">
+       <button type="button" class="btn-icon draft-undo-btn" title="Annulla modifica" disabled><i data-lucide="undo-2"></i></button>
+       <button type="button" class="btn-icon draft-redo-btn" title="Ripeti modifica" disabled><i data-lucide="redo-2"></i></button>
+       <button type="button" class="btn-icon draft-color-btn" title="Colore" style="color:var(--text-muted)"><i data-lucide="palette"></i></button>
+       <button type="button" class="btn-icon draft-tags-btn" title="Etichette"><i data-lucide="tag"></i></button>
+       <button type="button" class="btn-icon draft-pin-btn" id="cl-draft-pin-btn" title="Fissa in alto"><i data-lucide="pin"></i></button>
+       <button type="button" class="btn-icon draft-trash-btn" title="Cestino" style="color:var(--text-muted)"><i data-lucide="trash-2"></i></button>
+       <input type="hidden" id="cl-draft-color" value="default">
+       <input type="hidden" id="cl-draft-pinned" value="false">
+       <input type="hidden" id="cl-draft-tags" value="">
+    </div>
+    <div class="editor-footer-actions">
+       <button class="btn btn-ghost" id="btn-close-cl-footer">Annulla</button>
+       <button class="btn btn-primary" id="btn-save-cl">Chiudi</button>
+    </div>
+  </div>
+   </div>
+  </div>
+
+
+<!-- ── Generatore di Password ────────────────────────────────────────────────── -->
+<div id="modal-generator" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="gen-modal-title">
+ <div class="modal-backdrop"></div>
+ <div class="modal-box" style="max-width:420px">
+ <div class="modal-header">
+ <h2 id="gen-modal-title">Generatore di Password</h2>
+ <button class="btn-icon" id="btn-gen-close" aria-label="Chiudi"><i data-lucide="x"></i></button>
+ </div>
+ <div class="modal-body">
+
+ <div class="input-with-action" style="margin-bottom:var(--sp-4)">
+ <input type="text" id="gen-preview" readonly>
+ <button class="btn-icon" id="btn-gen-refresh" title="Generate new"><i data-lucide="refresh-cw"></i></button>
+ </div>
+
+ <div class="gen-controls">
+ <div class="gen-row">
+ <label for="gen-length">Lunghezza: <strong id="gen-length-display">20</strong></label>
+ <input type="range" id="gen-length" min="8" max="64" value="20" style="flex:1;min-width:0">
+ </div>
+ <div class="gen-row">
+ <label for="gen-upper">Maiuscole (A-Z)</label>
+ <input type="checkbox" id="gen-upper" checked>
+ </div>
+ <div class="gen-row">
+ <label for="gen-lower">Minuscole (a-z)</label>
+ <input type="checkbox" id="gen-lower" checked>
+ </div>
+ <div class="gen-row">
+ <label for="gen-digits">Numeri (0-9)</label>
+ <input type="checkbox" id="gen-digits" checked>
+ </div>
+ <div class="gen-row">
+ <label for="gen-symbols">Simboli (!@#…)</label>
+ <input type="checkbox" id="gen-symbols" checked>
+ </div>
+ <div class="gen-row">
+ <label for="gen-noAmbiguous">Escludi caratteri ambigui (0, O, l, 1…)</label>
+ <input type="checkbox" id="gen-noAmbiguous">
+ </div>
+ </div>
+
+ </div>
+ <div class="modal-footer">
+ <button class="btn btn-ghost" id="btn-gen-close-footer">Annulla</button>
+ <button class="btn btn-primary" id="btn-gen-apply">Usa questa password</button>
+ </div>
+ </div>
+</div>
+
+<!-- ── Cronologia Password ──────────────────────────────────────────────────── -->
+<div id="modal-pwd-history" class="modal hidden" role="dialog" aria-modal="true">
+ <div class="modal-backdrop"></div>
+ <div class="modal-box" style="max-width:560px">
+ <div class="modal-header">
+ <h2>Storico password</h2>
+ <button class="btn-icon" id="btn-close-pwd-history" aria-label="Chiudi"><i data-lucide="x"></i></button>
+ </div>
+ <div class="modal-body">
+ <div id="pwd-history-list"></div>
+ </div>
+ </div>
+</div>
+
+<!-- ── Gestione etichette ────────────────────────────────────────────────── -->
+<div id="modal-manage-tags" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="manage-tags-title">
+ <div class="modal-backdrop" id="manage-tags-backdrop"></div>
+ <div class="modal-box" style="max-width:420px">
+ <div class="modal-header">
+ <h2 id="manage-tags-title">Etichette</h2>
+ <button class="btn-icon" id="btn-close-manage-tags" type="button" aria-label="Chiudi"><i data-lucide="x"></i></button>
+ </div>
+ <div class="modal-body">
+ <form id="form-manage-tag-create" class="manage-tag-create">
+  <input type="text" id="manage-tag-new" placeholder="Nuova etichetta" autocomplete="off" maxlength="40" spellcheck="false">
+  <button class="btn btn-primary" type="submit">Aggiungi</button>
+ </form>
+ <p class="manage-tags-hint">Scrivi un nome e premi Aggiungi. Puoi rinominare un’etichetta e confermare con Invio. Eliminarla la toglie dalle note, senza cancellare le note.</p>
+ <div id="manage-tags-list"></div>
+ </div>
+ <div class="modal-footer">
+ <button class="btn btn-ghost" id="btn-close-manage-tags-footer" type="button">Chiudi</button>
+ </div>
+ </div>
+</div>
+
+<!-- ── Gestione luoghi ───────────────────────────────────────────────────── -->
+<div id="modal-manage-places" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="manage-places-title">
+ <div class="modal-backdrop" id="manage-places-backdrop"></div>
+ <div class="modal-box" style="max-width:520px">
+  <div class="modal-header">
+   <h2 id="manage-places-title">Luoghi</h2>
+   <button class="btn-icon" id="btn-close-manage-places" type="button" aria-label="Chiudi"><i data-lucide="x"></i></button>
+  </div>
+  <div class="modal-body">
+   <form id="form-manage-place-create" class="manage-place-create">
+    <input type="text" id="manage-place-name" placeholder="Nome del luogo" autocomplete="off" maxlength="40">
+    <div class="place-address-wrap">
+     <input type="text" id="manage-place-address" placeholder="Indirizzo" autocomplete="off">
+     <div id="manage-place-suggestions" class="place-suggestions hidden"></div>
+    </div>
+    <select id="manage-place-radius">
+     <option value="100">100 m</option>
+     <option value="200">200 m</option>
+     <option value="500" selected>500 m</option>
+     <option value="1000">1000 m</option>
+     <option value="2000">2000 m</option>
+    </select>
+    <div class="place-map-wrap">
+     <div id="place-map" class="place-map"></div>
+     <p id="place-map-empty" class="place-map-empty">Scegli un indirizzo per vedere il punto e il cerchio del raggio.</p>
+    </div>
+    <button class="btn btn-primary" type="submit">Aggiungi</button>
+   </form>
+   <p class="manage-tags-hint">Scegli un indirizzo dai suggerimenti. Sulla mappa controlli il punto e il raggio. Un luogo già salvato si rivede toccando il suo indirizzo.</p>
+   <div id="manage-places-list"></div>
+  </div>
+  <div class="modal-footer">
+   <button class="btn btn-ghost" id="btn-close-manage-places-footer" type="button">Chiudi</button>
+  </div>
+ </div>
+</div>
+
+<!-- ── Nota protetta dal luogo ───────────────────────────────────────────── -->
+<div id="modal-place-lock" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="place-lock-title">
+ <div class="modal-backdrop" id="place-lock-backdrop"></div>
+ <div class="modal-box" style="max-width:420px">
+  <div class="modal-header">
+   <h2 id="place-lock-title">Protetta dal luogo</h2>
+   <button class="btn-icon" id="btn-close-place-lock" type="button" aria-label="Chiudi"><i data-lucide="x"></i></button>
+  </div>
+  <div class="modal-body">
+   <p id="place-lock-text" style="font-size:var(--text-sm);line-height:1.5;"></p>
+  </div>
+  <div class="modal-footer">
+   <button class="btn btn-primary" id="btn-close-place-lock-footer" type="button">Chiudi</button>
+  </div>
+ </div>
+</div>
+
+<!-- ── Tag Editor ────────────────────────────────────────────────────────── -->
+<div id="modal-tags" class="modal hidden" role="dialog" aria-modal="true">
+ <div class="modal-backdrop"></div>
+ <div class="modal-box" style="max-width:380px">
+ <div class="modal-header">
+ <h2>Etichette</h2>
+ <button class="btn-icon" id="btn-close-tags" aria-label="Chiudi"><i data-lucide="x"></i></button>
+ </div>
+ <div class="modal-body">
+ <div class="input-with-action">
+ <input type="text" id="tag-input" placeholder="Nuova etichetta..." autocomplete="off">
+ <button class="btn btn-primary" id="btn-add-tag">Aggiungi</button>
+ </div>
+ <div id="current-tags" style="margin-top:var(--sp-3);"></div>
+   <div id="tag-suggestions" style="margin-top:var(--sp-3); display:flex; flex-wrap:wrap; gap:6px;"></div>
+ </div>
+ <div class="modal-footer">
+ <button class="btn btn-ghost" id="btn-close-tags-footer">Annulla</button>
+ <button class="btn btn-primary" id="btn-save-tags">Salva</button>
+ </div>
+ </div>
+</div>
+
+
+ </div>
+</div>
+
+<!-- ── Cambia Password ───────────────────────────────────────────────────── -->
+<div id="modal-change-pwd" class="modal hidden" role="dialog" aria-modal="true">
+ <div class="modal-backdrop"></div>
+ <div class="modal-box" style="max-width:400px">
+ <div class="modal-header">
+ <h2>Cambia Password</h2>
+ <button class="btn-icon" id="btn-close-change-pwd" aria-label="Chiudi"><i data-lucide="x"></i></button>
+ </div>
+ <div class="modal-body">
+ <div class="form-group">
+ <label for="old-password">Password attuale</label>
+ <input type="password" id="old-password" autocomplete="current-password" spellcheck="false">
+ </div>
+ <div class="form-group">
+ <label for="new-password">Nuova password</label>
+ <input type="password" id="new-password" autocomplete="new-password" spellcheck="false">
+ </div>
+ <div class="form-group">
+ <label for="confirm-new-password">Conferma nuova password</label>
+ <input type="password" id="confirm-new-password" autocomplete="new-password" spellcheck="false">
+ </div>
+ </div>
+ <div class="modal-footer">
+ <button class="btn btn-ghost" id="btn-close-change-pwd-footer">Annulla</button>
+ <button class="btn btn-primary" id="btn-save-change-pwd">Cambia Password</button>
+ </div>
+ </div>
+</div>
+
+<!-- ── Chiave segreta ────────────────────────────────────────────────────── -->
+<div id="modal-secret-key" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="secret-key-title">
+ <div class="modal-backdrop" id="secret-key-backdrop"></div>
+ <div class="modal-box" style="max-width:440px">
+  <div class="modal-header">
+   <h2 id="secret-key-title">Chiave segreta</h2>
+   <button class="btn-icon" id="btn-secret-key-close" type="button" aria-label="Chiudi"><i data-lucide="x"></i></button>
+  </div>
+  <div class="modal-body">
+   <p class="settings-desc" id="secret-key-lead">Serve su un dispositivo nuovo, insieme alla master password. Su questo dispositivo resta memorizzata.</p>
+   <div class="recovery-key-box" id="secret-key-modal-display" aria-label="Chiave segreta"></div>
+   <div style="display:flex;gap:.5rem;margin-bottom:1rem">
+    <button class="btn btn-outline" id="btn-copy-secret-modal" type="button" style="flex:1"><i data-lucide="copy" style="width:16px;height:16px;margin-right:4px;"></i> Copia</button>
+    <button class="btn btn-outline" id="btn-print-secret-modal" type="button" style="flex:1"><i data-lucide="printer" style="width:16px;height:16px;margin-right:4px;"></i> Stampa</button>
+   </div>
+   <div class="ob-confirm-row hidden" id="secret-key-confirm-row">
+    <input type="checkbox" id="secret-key-confirmed">
+    <label for="secret-key-confirmed">Ho messo al sicuro la chiave segreta.</label>
+   </div>
+   <div class="form-group hidden" id="secret-key-remember">
+    <label for="secret-key-remember-pwd">Master password</label>
+    <input type="password" id="secret-key-remember-pwd" autocomplete="current-password" spellcheck="false">
+    <label for="secret-key-remember-input" style="margin-top:.75rem">Chiave segreta</label>
+    <input type="text" id="secret-key-remember-input" class="lock-key-input" placeholder="XXXX-XXXX-XXXX-…" spellcheck="false" autocapitalize="characters" autocomplete="off">
+    <button class="btn btn-primary w-full" id="btn-secret-key-remember" type="button" style="margin-top:.75rem">Salva su questo dispositivo</button>
+   </div>
+  </div>
+  <div class="modal-footer">
+   <button class="btn btn-primary" id="btn-secret-key-done" type="button">Ho capito</button>
+  </div>
+ </div>
+</div>
+
+<div id="modal-secret-rotate" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="secret-rotate-title">
+ <div class="modal-backdrop"></div>
+ <div class="modal-box" style="max-width:400px">
+  <div class="modal-header">
+   <h2 id="secret-rotate-title">Nuova chiave segreta</h2>
+   <button class="btn-icon" id="btn-secret-rotate-close" type="button" aria-label="Chiudi"><i data-lucide="x"></i></button>
+  </div>
+  <div class="modal-body">
+   <p class="settings-desc">Conferma la master password. La chiave precedente smette di funzionare sui nuovi dispositivi.</p>
+   <div class="form-group">
+    <label for="secret-rotate-password">Master password</label>
+    <input type="password" id="secret-rotate-password" autocomplete="current-password" spellcheck="false">
+   </div>
+   <div class="form-group">
+    <label for="secret-rotate-confirm">Conferma password</label>
+    <input type="password" id="secret-rotate-confirm" autocomplete="current-password" spellcheck="false">
+   </div>
+  </div>
+  <div class="modal-footer">
+   <button class="btn btn-ghost" id="btn-secret-rotate-cancel" type="button">Annulla</button>
+   <button class="btn btn-primary" id="btn-secret-rotate-save" type="button">Crea chiave</button>
+  </div>
+ </div>
+</div>
+
+<!-- ── Impostazioni ──────────────────────────────────────────────────────── -->
+<div id="modal-settings" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+ <div class="modal-backdrop"></div>
+ <div class="modal-box" style="max-width:440px">
+  <div class="modal-header">
+   <h2 id="settings-title">Impostazioni</h2>
+   <button class="btn-icon" id="btn-settings-close" aria-label="Chiudi"><i data-lucide="x"></i></button>
+  </div>
+  <div class="modal-body">
+   <section class="settings-group">
+    <p class="settings-kicker">Sicurezza</p>
+    <div class="settings-card">
+     <div class="settings-field">
+      <div class="settings-copy">
+       <label class="settings-label" for="settings-autolock">Blocco automatico</label>
+       <p class="settings-desc">Chiude la cassaforte dopo un periodo di inattività.</p>
+      </div>
+      <select id="settings-autolock"></select>
+     </div>
+     <button class="settings-action" id="btn-settings-change-pwd" type="button">
+      <span class="settings-ico"><i data-lucide="key-round"></i></span>
+      <span class="settings-copy">
+       <span class="settings-label">Cambia master password</span>
+       <span class="settings-desc">La password principale della cassaforte.</span>
+      </span>
+      <i data-lucide="chevron-right" class="settings-chevron"></i>
+     </button>
+     <button class="settings-action" id="btn-settings-secret-show" type="button">
+      <span class="settings-ico"><i data-lucide="shield"></i></span>
+      <span class="settings-copy">
+       <span class="settings-label">Chiave segreta</span>
+       <span class="settings-desc" id="settings-secret-status">Memorizzata su questo dispositivo.</span>
+      </span>
+      <i data-lucide="chevron-right" class="settings-chevron"></i>
+     </button>
+     <button class="settings-action" id="btn-settings-secret-rotate" type="button">
+      <span class="settings-ico"><i data-lucide="refresh-cw"></i></span>
+      <span class="settings-copy">
+       <span class="settings-label">Crea di nuovo la chiave segreta</span>
+       <span class="settings-desc">Invalida quella precedente. Servirà sui nuovi dispositivi.</span>
+      </span>
+      <i data-lucide="chevron-right" class="settings-chevron"></i>
+     </button>
+     <button class="settings-action" id="btn-settings-biometric" type="button">
+      <span class="settings-ico"><i data-lucide="fingerprint"></i></span>
+      <span class="settings-copy">
+       <span class="settings-label">Sblocca con impronta</span>
+       <span class="settings-desc">Decidi se entrare con l’impronta di questo dispositivo.</span>
+      </span>
+      <i data-lucide="chevron-right" class="settings-chevron"></i>
+     </button>
+     <button class="settings-action" id="btn-settings-install" type="button">
+      <span class="settings-ico"><i data-lucide="download"></i></span>
+      <span class="settings-copy">
+       <span class="settings-label">Installa l’app</span>
+       <span class="settings-desc">Aggiungi SecureKeep alla schermata Home.</span>
+      </span>
+      <i data-lucide="chevron-right" class="settings-chevron"></i>
+     </button>
+    </div>
+   </section>
+   <section class="settings-group">
+    <p class="settings-kicker">Posizione</p>
+    <div class="settings-card settings-card-geo">
+     <div class="settings-field">
+      <div class="settings-copy">
+       <span class="settings-label">Dove ti trova il dispositivo</span>
+       <p class="settings-desc" id="settings-geo-status">Serve a leggere le note legate a un luogo.</p>
+      </div>
+      <div class="place-map-wrap">
+       <div id="settings-geo-map" class="place-map settings-geo-map"></div>
+       <p id="settings-geo-empty" class="place-map-empty">In attesa della posizione.</p>
+      </div>
+      <button class="btn btn-primary" id="btn-settings-geo" type="button">Ricalcola posizione</button>
+      <div class="settings-geo-force">
+       <p class="settings-desc">Forza un indirizzo solo fino al prossimo blocco. Non viene salvato: all’accesso successivo si rilegge la posizione del browser.</p>
+       <div class="place-address-wrap">
+        <input type="text" id="settings-geo-address" placeholder="Indirizzo da usare ora" autocomplete="off">
+        <div id="settings-geo-suggestions" class="place-suggestions hidden"></div>
+       </div>
+       <button class="btn btn-primary" id="btn-settings-geo-force" type="button">Usa questo indirizzo</button>
+       <button class="btn btn-ghost hidden" id="btn-settings-geo-device" type="button">Torna al dispositivo</button>
+      </div>
+     </div>
+    </div>
+   </section>
+   <section class="settings-group">
+    <p class="settings-kicker">Sincronizzazione</p>
+    <div class="settings-card">
+     <div class="settings-field settings-switch-row">
+      <div class="settings-copy">
+       <span class="settings-label" id="settings-drive-prompt-label">Chiedi il collegamento a ogni accesso</span>
+       <p class="settings-desc">Dopo lo sblocco puoi collegare Google Drive o restare in locale.</p>
+      </div>
+      <button type="button" class="settings-switch" id="settings-drive-prompt" role="switch" aria-checked="false" aria-labelledby="settings-drive-prompt-label"></button>
+     </div>
+     <button class="settings-action" id="btn-settings-drive" type="button">
+      <span class="settings-ico"><i data-lucide="cloud"></i></span>
+      <span class="settings-copy">
+       <span class="settings-label">Collega Google Drive</span>
+       <span class="settings-desc" id="settings-drive-status"></span>
+      </span>
+      <i data-lucide="chevron-right" class="settings-chevron"></i>
+     </button>
+    </div>
+   </section>
+   <section class="settings-group">
+    <p class="settings-kicker">Backup</p>
+    <div class="settings-card">
+     <button class="settings-action" id="btn-settings-export" type="button">
+      <span class="settings-ico"><i data-lucide="download"></i></span>
+      <span class="settings-copy">
+       <span class="settings-label">Esporta backup cifrato</span>
+       <span class="settings-desc">Scarica una copia della cassaforte.</span>
+      </span>
+      <i data-lucide="chevron-right" class="settings-chevron"></i>
+     </button>
+     <button class="settings-action" id="btn-settings-import" type="button">
+      <span class="settings-ico"><i data-lucide="upload"></i></span>
+      <span class="settings-copy">
+       <span class="settings-label">Importa backup</span>
+       <span class="settings-desc">Ripristina da un file cifrato.</span>
+      </span>
+      <i data-lucide="chevron-right" class="settings-chevron"></i>
+     </button>
+     <input type="file" id="settings-import-file" accept=".skv,application/json" class="hidden">
+    </div>
+   </section>
+  </div>
+  <div class="modal-footer">
+   <button class="btn btn-ghost" id="btn-settings-close-footer">Chiudi</button>
+  </div>
+ </div>
+</div>
+
+<!-- ── Collegamento Drive all’accesso ────────────────────────────────────── -->
+<div id="modal-drive-prompt" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="drive-prompt-title">
+ <div class="modal-backdrop" id="drive-prompt-backdrop"></div>
+ <div class="modal-box" style="max-width:440px">
+  <div class="modal-header">
+   <h2 id="drive-prompt-title">Collegare Google Drive?</h2>
+   <button class="btn-icon" id="btn-drive-prompt-close" type="button" aria-label="Chiudi"><i data-lucide="x"></i></button>
+  </div>
+  <div class="modal-body">
+   <p style="font-size:var(--text-sm);line-height:1.5;color:var(--text);">Le note restano su questo dispositivo finché non colleghi Drive. Puoi farlo ora oppure continuare in locale.</p>
+  </div>
+  <div class="modal-footer">
+   <button class="btn btn-ghost" id="btn-drive-prompt-local" type="button">Resta in locale</button>
+   <button class="btn btn-primary" id="btn-drive-prompt-connect" type="button">Collega Google Drive</button>
+  </div>
+ </div>
+</div>
+
+<!-- ── Attivazione impronta ──────────────────────────────────────────────── -->
+<div id="modal-biometric" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="biometric-title">
+ <div class="modal-backdrop" id="biometric-backdrop"></div>
+ <div class="modal-box" style="max-width:440px">
+  <div class="modal-header">
+   <h2 id="biometric-title">Sblocca con impronta</h2>
+   <button class="btn-icon" id="btn-close-biometric" type="button" aria-label="Chiudi"><i data-lucide="x"></i></button>
+  </div>
+  <form id="form-biometric">
+   <div class="modal-body">
+    <p class="text-muted text-sm" style="margin-bottom:1rem">Conferma la master password. Poi il dispositivo chiederà l’impronta.</p>
+    <div class="form-group">
+     <label for="biometric-password">Master password</label>
+     <input type="password" id="biometric-password" autocomplete="current-password" spellcheck="false" autocorrect="off">
+    </div>
+   </div>
+   <div class="modal-footer">
+    <button class="btn btn-ghost" id="btn-close-biometric-footer" type="button">Annulla</button>
+    <button class="btn btn-primary" id="btn-biometric-confirm" type="submit">Continua</button>
+   </div>
+  </form>
+ </div>
+</div>
+
+<!-- ── Promemoria copia locale ───────────────────────────────────────────── -->
+<div id="modal-export-reminder" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="export-reminder-title">
+ <div class="modal-backdrop" id="export-reminder-backdrop"></div>
+ <div class="modal-box" style="max-width:440px">
+  <div class="modal-header">
+   <h2 id="export-reminder-title">Copia locale della cassaforte</h2>
+   <button class="btn-icon" id="btn-close-export-reminder" type="button" aria-label="Chiudi"><i data-lucide="x"></i></button>
+  </div>
+  <div class="modal-body">
+   <p style="font-size:var(--text-sm);line-height:1.5;color:var(--text);">Scarica una copia della cassaforte cifrata sul dispositivo. Finché non premi Esporta cassaforte, questo messaggio compare a ogni accesso. Dopo il download, il prossimo promemoria arriva tra un mese.</p>
+  </div>
+  <div class="modal-footer">
+   <button class="btn btn-ghost" id="btn-close-export-reminder-footer" type="button">Chiudi</button>
+   <button class="btn btn-primary" id="btn-export-reminder" type="button">Esporta cassaforte</button>
+  </div>
+ </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+ TOAST CONTAINER
+ ════════════════════════════════════════════════════════════════════════ -->
+<div id="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+<!-- Fatal error fallback -->
+<div id="fatal-error" class="hidden" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);padding:2rem;text-align:center;">
+ <div>
+ <i data-lucide="shield-alert" style="width:48px;height:48px;color:var(--danger);margin-bottom:1rem"></i>
+ <h2 style="margin-bottom:var(--sp-2)">SecureKeep failed to start</h2>
+ <p style="color:var(--text-muted);font-size:var(--text-sm)">Open the browser console for details. Your encrypted data is safe.</p>
+ </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+ APP SCRIPT
+ ════════════════════════════════════════════════════════════════════════ -->
+<script src="js/lib/leaflet/leaflet.js"></script>
+<script type="module" src="js/app.js"></script>
+
+
+<!-- Svuota Cestino Confirm -->
+<div id="modal-empty-trash" class="modal hidden" role="dialog" aria-modal="true">
+  <div class="modal-backdrop"></div>
+  <div class="modal-box" style="max-width:400px; padding: 24px;">
+    <div style="text-align: center; margin-bottom: 24px;">
+      <div style="width: 56px; height: 56px; background: var(--danger); opacity: 0.1; border-radius: 50%; position: absolute; left: 50%; transform: translateX(-50%); top: 24px;"></div>
+      <i data-lucide="alert-triangle" style="width: 32px; height: 32px; color: var(--danger); position: relative; margin-top: 12px; margin-bottom: 16px;"></i>
+      <h2 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 8px;">Svuotare il cestino?</h2>
+      <p style="color: var(--text-muted); font-size: 0.95rem; line-height: 1.5;">Tutte le note nel cestino verranno eliminate definitivamente. Questa azione <b style="color: var(--text);">non puo' essere annullata</b> in alcun modo.</p>
+    </div>
+    <div style="display: flex; gap: 12px;">
+      <button class="btn btn-ghost" id="btn-cancel-empty-trash" style="flex: 1;">Annulla</button>
+      <button class="btn btn-danger" id="btn-confirm-empty-trash" style="flex: 1;">Elimina per sempre</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- View Password Modal -->
+<div id="modal-view-password" class="modal hidden" role="dialog" aria-modal="true" style="user-select: none;">
+  <div class="modal-backdrop"></div>
+  <div class="modal-box" style="max-width:480px; padding: 24px; text-align: center; cursor: pointer;" id="view-password-box">
+    <h2 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 8px;">Password</h2>
+    <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 24px;">Tocca ovunque per mostrare/nascondere</p>
+    <div id="view-password-text" style="font-size: 2.25rem; font-family: monospace; font-weight: bold; padding: 16px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-card); margin-bottom: 24px; word-break: break-all; letter-spacing: 2px; filter: blur(10px); transition: filter 0.2s ease;"></div>
+    <button class="btn btn-primary w-full" id="btn-close-view-password" style="cursor: pointer;">Chiudi</button>
+  </div>
+</div>
+
+</body>
+</html>
+
