@@ -7,7 +7,7 @@
  * Versioning: bump CACHE_VERSION on each deploy to invalidate old caches.
  */
 
-const CACHE_VERSION  = 'sk-v1.3.108';
+const CACHE_VERSION  = 'sk-v1.3.109';
 const CACHE_NAME     = `securekeep-${CACHE_VERSION}`;
 
 // App shell files to pre-cache
@@ -31,6 +31,8 @@ const APP_SHELL = [
   './js/app.js',
   './manifest.json',
   './icons/fingerprint.svg',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
   './icons/css-pattern-by-magicpattern.png',
   './js/lib/lottie/lottie-light.min.js',
   './js/lib/lottie/lottie-element.js',
